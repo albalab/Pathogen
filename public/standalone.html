@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pathogen Genetic Algorithm Demo</title>
+<style>
+    :root {
+        --bg: #222529;
+        --secondary: rgba(128, 128, 128, 0.5);
+        --panel: rgba(34, 37, 41, 0.85);
+        --text: #f4f4f4;
+        --accent: #42abc2;
+    }
+
+    * {
+        box-sizing: border-box;
+        font-family: 'Catamaran', 'Helvetica', 'Arial', sans-serif;
+    }
+
+    body {
+        margin: 0;
+        background: #111;
+        overflow: hidden;
+        color: var(--text);
+    }
+
+    header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: clamp(48px, 12vh, 90px);
+        background: var(--panel);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: 10;
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    header h1 {
+        font-weight: 200;
+        letter-spacing: 2px;
+        margin: 0;
+        font-size: clamp(24px, 5vw, 40px);
+    }
+
+    #generation {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: clamp(16px, 3vw, 24px);
+    }
+
+    #generation span {
+        color: var(--accent);
+        font-weight: 600;
+        min-width: 64px;
+        display: inline-block;
+        text-align: right;
+    }
+
+    #controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    button, .toggle {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: var(--text);
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+
+    button:hover, .toggle:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--accent);
+    }
+
+    button:active {
+        transform: translateY(1px);
+    }
+
+    .icon-btn {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+        padding: 0;
+    }
+
+    #dropdown {
+        position: fixed;
+        top: calc(clamp(48px, 12vh, 90px) + 8px);
+        right: 16px;
+        width: min(320px, 90vw);
+        background: var(--panel);
+        border-radius: 12px;
+        padding: 16px;
+        display: none;
+        flex-direction: column;
+        gap: 16px;
+        z-index: 20;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    }
+
+    #dropdown.open {
+        display: flex;
+    }
+
+    #dropdown h2 {
+        margin: 0;
+        font-weight: 400;
+        letter-spacing: 1px;
+        font-size: 18px;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .control-group label {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: rgba(255,255,255,0.8);
+    }
+
+    .control-group input[type="range"],
+    .control-group input[type="number"] {
+        width: 100%;
+    }
+
+    .control-group input[type="range"] {
+        accent-color: var(--accent);
+    }
+
+    canvas {
+        position: fixed;
+        top: clamp(48px, 12vh, 90px);
+        left: 0;
+        background: rgba(0,0,0,0.65);
+    }
+
+    #info-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(6px);
+        background: rgba(0,0,0,0.6);
+        z-index: 30;
+    }
+
+    #info-modal.open {
+        display: flex;
+    }
+
+    #info-content {
+        background: var(--panel);
+        padding: 24px;
+        border-radius: 16px;
+        max-width: min(640px, 90vw);
+        max-height: 80vh;
+        overflow-y: auto;
+        color: rgba(255,255,255,0.9);
+        line-height: 1.5;
+    }
+
+    #info-content h2 {
+        margin-top: 0;
+        letter-spacing: 1px;
+    }
+
+    #info-content ul {
+        padding-left: 20px;
+    }
+
+    #grid-settings {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        background: var(--panel);
+        padding: 12px 16px;
+        border-radius: 12px;
+    }
+
+    #grid-settings button {
+        align-self: flex-start;
+    }
+
+    #status {
+        font-size: 12px;
+        letter-spacing: 1px;
+        opacity: 0.8;
+        margin-top: -4px;
+    }
+
+    .spacer {
+        height: clamp(48px, 12vh, 90px);
+    }
+
+    .tooltip {
+        position: relative;
+    }
+
+    .tooltip:hover::after {
+        content: attr(data-label);
+        position: absolute;
+        bottom: -28px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.85);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 768px) {
+        header {
+            flex-direction: column;
+            align-items: flex-start;
+            height: auto;
+            padding-bottom: 12px;
+            gap: 12px;
+        }
+
+        canvas {
+            top: calc(clamp(48px, 12vh, 90px) + 24px);
+        }
+    }
+</style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>Pathogen</h1>
+        <div id="status">Genetic algorithm maze solver</div>
+    </div>
+    <div id="generation">Generation: <span id="generation-value">1</span></div>
+    <div id="controls">
+        <button id="toggle-dropdown" class="tooltip" data-label="Simulation controls">Controls</button>
+        <button id="toggle-info" class="icon-btn tooltip" data-label="Help">ℹ️</button>
+        <button id="pause" class="icon-btn tooltip" data-label="Pause/Play">⏸</button>
+        <button id="skip" class="icon-btn tooltip" data-label="Skip visualization">⚡</button>
+        <div style="display:flex;align-items:center;gap:6px;">
+            <label for="speed" style="font-size:12px;letter-spacing:1px;">Speed</label>
+            <input id="speed" type="range" min="1" max="1000" value="1" />
+        </div>
+    </div>
+</header>
+<div class="spacer"></div>
+<canvas id="ga-canvas"></canvas>
+<div id="dropdown">
+    <div id="grid-settings">
+        <h2>Maze</h2>
+        <div class="control-group">
+            <label for="rows">Rows: <span id="rows-value"></span></label>
+            <input type="range" id="rows" min="7" max="21" value="7" />
+        </div>
+        <div class="control-group">
+            <label for="cols">Columns: <span id="cols-value"></span></label>
+            <input type="range" id="cols" min="7" max="31" value="7" />
+        </div>
+        <button id="apply">Regenerate Maze</button>
+    </div>
+    <div class="control-group">
+        <h2>Genetics</h2>
+        <label for="population">Population: <span id="population-value"></span></label>
+        <input type="range" id="population" min="40" max="400" value="100" />
+    </div>
+    <div class="control-group">
+        <label for="mutation">Mutation Rate: <span id="mutation-value"></span></label>
+        <input type="range" id="mutation" min="0.001" max="0.05" value="0.004" step="0.001" />
+    </div>
+</div>
+<div id="info-modal">
+    <div id="info-content">
+        <h2>How to use</h2>
+        <p>This standalone page replicates the Pathogen genetic algorithm visualization without external dependencies.</p>
+        <ul>
+            <li>Drag inside the maze to draw walls. Hold <strong>Shift</strong> while dragging to erase.</li>
+            <li>Drag the green (start) or red (goal) nodes to reposition them.</li>
+            <li>Use the <em>Controls</em> button to open sliders for maze size, population, and mutation rate.</li>
+            <li>Use the toolbar buttons to pause, resume, or fast-forward the simulation.</li>
+            <li>The lightning button fast-forwards until a solution is found or the step cap is reached.</li>
+        </ul>
+        <button id="close-info">Close</button>
+    </div>
+</div>
+<script>
+(function() {
+    const Constants = {
+        BANNER_RATIO: 0.15,
+        ROW_RANGE: [7, 21],
+        COL_RANGE: [7, 31],
+        POPULATION_RANGE: [40, 400],
+        SPEED_RANGE: [1, 1000],
+        ACC_RANGE: [-1, 1],
+        MUTATION_RANGE: [0.001, 0.05],
+        DEFAULT_ROWS: 7,
+        DEFAULT_COLS: 7,
+        DEFAULT_POPULATION: 100,
+        DEFAULT_SPEED: 1,
+        DEFAULT_MUTATION: 0.004
+    };
+
+    const Colors = {
+        PRIMARY: '#222529',
+        PRIMARY_RGB: [34, 37, 41],
+        SECONDARY_RGB: [128, 128, 128]
+    };
+
+    const params = {
+        gridRows: Constants.DEFAULT_ROWS,
+        gridColumns: Constants.DEFAULT_COLS,
+        pause: false,
+        speed: Constants.DEFAULT_SPEED,
+        population: Constants.DEFAULT_POPULATION,
+        mutation: Constants.DEFAULT_MUTATION,
+        skipVisual: false,
+        windowSize: { width: window.innerWidth, height: window.innerHeight },
+        generationCount: 1
+    };
+
+    class Cell {
+        constructor(x, y, type) {
+            this.x = x;
+            this.y = y;
+            this.type = type; // 0 empty, 1 wall, 2 start, 3 end
+            this.visited = false;
+            this.dampening = 1;
+        }
+        dampen() { this.dampening++; }
+        getDampening() { return this.dampening; }
+        resetDampening() { this.dampening = 1; }
+    }
+
+    class Agent {
+        constructor(x, y, dna, color) {
+            this.pos = { x, y };
+            this.vel = { x: 0, y: 0 };
+            this.acc = { x: 0, y: 0 };
+            this.dna = dna ? dna.slice() : [];
+            this.age = 0;
+            this.dead = false;
+            this.foundTarget = false;
+            this.dist = Number.MAX_SAFE_INTEGER;
+            this.fitness = 0;
+            this.visitedCells = [];
+            this.lastPos = { x: -1, y: -1 };
+            this.color = color || [255, 0, 0];
+            this.outline = [this.color[0] * 0.5, this.color[1] * 0.5, this.color[2] * 0.5];
+        }
+        update() {
+            while (this.age > this.dna.length - 1) {
+                this.dna.push({
+                    x: Math.random() * (Constants.ACC_RANGE[1] - Constants.ACC_RANGE[0]) + Constants.ACC_RANGE[0],
+                    y: Math.random() * (Constants.ACC_RANGE[1] - Constants.ACC_RANGE[0]) + Constants.ACC_RANGE[0]
+                });
+            }
+            this.acc = this.dna[this.age];
+            this.vel.x += this.acc.x;
+            this.vel.y += this.acc.y;
+            this.pos.x += this.vel.x;
+            this.pos.y += this.vel.y;
+            this.age++;
+        }
+        inBounds(width, height) {
+            return this.pos.x >= 0 && this.pos.x <= width && this.pos.y >= 0 && this.pos.y <= height;
+        }
+        kill() { this.dead = true; }
+        isDead() { return this.dead; }
+        calculateFitness(dampening) {
+            let fitness = this.visitedCells.length / (this.dist * dampening);
+            if (!isFinite(fitness)) fitness = 0;
+            if (this.foundTarget) fitness = Number.MAX_SAFE_INTEGER;
+            this.fitness = Math.min(fitness, Number.MAX_SAFE_INTEGER);
+        }
+        updateVisitedCells(cell) {
+            if (!cell) return;
+            for (const visited of this.visitedCells) {
+                if (visited.x === cell.x && visited.y === cell.y) return;
+            }
+            this.visitedCells.push(cell);
+        }
+        setDistance(n) { this.dist = n; }
+        getLastPosition() { return this.lastPos; }
+        setLastPosition(x, y) { this.lastPos.x = x; this.lastPos.y = y; }
+        foundTargetNow() { this.foundTarget = true; }
+    }
+
+    class Grid {
+        constructor(rows, cols, width, height, population) {
+            this.rows = rows;
+            this.cols = cols;
+            this.width = width;
+            this.height = height;
+            this.cellWidth = width / cols;
+            this.cellHeight = height / rows;
+            this.mutationRate = Constants.DEFAULT_MUTATION;
+            this.generationCount = 1;
+            this.populationDeathToll = 0;
+            this.solved = false;
+            this.startNodeMoving = false;
+            this.endNodeMoving = false;
+            this.hoverInfo = null;
+            this.grid = this.createGrid(rows, cols);
+            this.generateMaze();
+            this.population = this.createPopulation(population);
+        }
+        createGrid(rows, cols) {
+            const grid = [];
+            for (let y = 0; y < rows; y++) {
+                const row = [];
+                for (let x = 0; x < cols; x++) {
+                    row.push(new Cell(x, y, 1));
+                }
+                grid.push(row);
+            }
+            return grid;
+        }
+        show(ctx) {
+            ctx.save();
+            ctx.fillStyle = `rgba(${Colors.SECONDARY_RGB[0]}, ${Colors.SECONDARY_RGB[1]}, ${Colors.SECONDARY_RGB[2]}, 0.5)`;
+            ctx.fillRect(0, 0, this.width, this.height);
+            for (let y = 0; y < this.grid.length; y++) {
+                for (let x = 0; x < this.grid[y].length; x++) {
+                    const cell = this.grid[y][x];
+                    if (cell.type === 0) continue;
+                    switch (cell.type) {
+                        case 1: // wall
+                            ctx.fillStyle = Colors.PRIMARY;
+                            ctx.strokeStyle = Colors.PRIMARY;
+                            ctx.fillRect(x * this.cellWidth, y * this.cellHeight, this.cellWidth, this.cellHeight);
+                            break;
+                        case 2: // start
+                            ctx.fillStyle = 'rgb(0,255,0)';
+                            ctx.fillRect(x * this.cellWidth, y * this.cellHeight, this.cellWidth, this.cellHeight);
+                            break;
+                        case 3: // end
+                            ctx.fillStyle = 'rgb(255,0,0)';
+                            ctx.fillRect(x * this.cellWidth, y * this.cellHeight, this.cellWidth, this.cellHeight);
+                            break;
+                    }
+                }
+            }
+            ctx.restore();
+            ctx.save();
+            const radius = Math.min(this.cellWidth, this.cellHeight) / 8;
+            for (const agent of this.population) {
+                ctx.beginPath();
+                ctx.fillStyle = `rgb(${agent.color[0]}, ${agent.color[1]}, ${agent.color[2]})`;
+                ctx.strokeStyle = `rgb(${agent.outline[0]}, ${agent.outline[1]}, ${agent.outline[2]})`;
+                ctx.lineWidth = 1;
+                ctx.arc(agent.pos.x, agent.pos.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+            ctx.restore();
+            if (this.hoverInfo) {
+                ctx.save();
+                ctx.globalAlpha = 0.25;
+                ctx.fillStyle = this.hoverInfo.color;
+                ctx.fillRect(this.hoverInfo.x * this.cellWidth, this.hoverInfo.y * this.cellHeight, this.cellWidth, this.cellHeight);
+                ctx.restore();
+            }
+        }
+        update(width, height) {
+            const endPos = this.getEndNodePosition();
+            const ex = endPos.x * this.cellWidth + this.cellWidth / 2;
+            const ey = endPos.y * this.cellHeight + this.cellHeight / 2;
+            if (this.populationDeathToll >= this.population.length) {
+                let maxFitness = -1;
+                for (const agent of this.population) {
+                    agent.setDistance(Math.sqrt(Math.abs(agent.pos.x - ex) + Math.abs(agent.pos.y - ey)));
+                    const last = agent.getLastPosition();
+                    const lastCell = this.getCell(last);
+                    const damp = lastCell ? lastCell.getDampening() : 1;
+                    agent.calculateFitness(damp);
+                    if (agent.fitness > maxFitness) maxFitness = agent.fitness;
+                }
+                const pool = [];
+                for (const agent of this.population) {
+                    agent.fitness = maxFitness <= 0 ? 0 : agent.fitness / maxFitness;
+                    const n = Math.floor(agent.fitness * 100);
+                    for (let i = 0; i < n; i++) pool.push(agent);
+                }
+                if (pool.length === 0) {
+                    this.population = this.createPopulation(this.population.length);
+                    this.generationCount += 1;
+                    this.populationDeathToll = 0;
+                    this.solved = false;
+                } else {
+                    this.population = this.createPopulationFromPool(this.population.length, pool);
+                }
+            }
+            for (const agent of this.population) {
+                const cell = this.getCell(agent.pos);
+                if (cell && cell.type === 3) {
+                    agent.foundTargetNow();
+                    agent.kill();
+                    this.populationDeathToll++;
+                    this.solved = true;
+                    continue;
+                }
+                if (agent.isDead()) continue;
+                if (!agent.inBounds(width, height) || (cell && cell.type === 1)) {
+                    agent.kill();
+                    const last = this.getCell(agent.getLastPosition());
+                    if (last) last.dampen();
+                    this.populationDeathToll++;
+                    continue;
+                }
+                if (cell) agent.updateVisitedCells(cell);
+                agent.setLastPosition(agent.pos.x, agent.pos.y);
+                const previousCell = cell;
+                agent.update();
+                const nowCell = this.getCell(agent.pos);
+                if (previousCell && nowCell && Math.abs(previousCell.x - nowCell.x) + Math.abs(previousCell.y - nowCell.y) > 1) {
+                    agent.kill();
+                    this.populationDeathToll++;
+                }
+            }
+        }
+        handleHover(mouse, shiftPressed) {
+            this.hoverInfo = null;
+            const cx = Math.floor(mouse.x / this.cellWidth);
+            const cy = Math.floor(mouse.y / this.cellHeight);
+            if (isNaN(cx) || isNaN(cy)) return;
+            if (cx < 0 || cx >= this.cols || cy < 0 || cy >= this.rows) return;
+            if (!this.startNodeMoving && !this.endNodeMoving && (cx < 1 || cx > this.cols - 2 || cy < 1 || cy > this.rows - 2)) {
+                return;
+            }
+            const cell = this.grid[cy][cx];
+            if (this.startNodeMoving || this.endNodeMoving) {
+                if (cell.type !== (this.startNodeMoving ? 2 : 3) && cell.type !== (this.startNodeMoving ? 3 : 2)) {
+                    this.hoverInfo = { x: cx, y: cy, color: this.startNodeMoving ? 'rgba(0,255,0,1)' : 'rgba(255,0,0,1)' };
+                }
+                return;
+            }
+            if (cell.type !== 0 && cell.type !== 1) return;
+            const color = shiftPressed ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,1)';
+            this.hoverInfo = { x: cx, y: cy, color };
+            if (mouse.pressed) {
+                this.solved = false;
+                for (const row of this.grid) for (const c of row) c.resetDampening();
+                this.grid[cy][cx].type = shiftPressed ? 0 : 1;
+            }
+        }
+        onMouseDown(mouse) {
+            const cx = Math.floor(mouse.x / this.cellWidth);
+            const cy = Math.floor(mouse.y / this.cellHeight);
+            if (cx < 1 || cx > this.cols - 2 || cy < 1 || cy > this.rows - 2) return;
+            const cell = this.grid[cy][cx];
+            if (cell.type === 2) {
+                this.startNodeMoving = true;
+            } else if (cell.type === 3) {
+                this.endNodeMoving = true;
+            }
+        }
+        onMouseUp(mouse) {
+            const cx = Math.floor(mouse.x / this.cellWidth);
+            const cy = Math.floor(mouse.y / this.cellHeight);
+            const clampedX = Math.min(Math.max(cx, 1), this.cols - 2);
+            const clampedY = Math.min(Math.max(cy, 1), this.rows - 2);
+            if (this.startNodeMoving) {
+                const target = this.grid[clampedY][clampedX];
+                if (target.type !== 3) {
+                    const start = this.getStartNodePosition();
+                    this.grid[start.y][start.x].type = 0;
+                    target.type = 2;
+                }
+                this.startNodeMoving = false;
+            } else if (this.endNodeMoving) {
+                const target = this.grid[clampedY][clampedX];
+                if (target.type !== 2) {
+                    const end = this.getEndNodePosition();
+                    this.grid[end.y][end.x].type = 0;
+                    target.type = 3;
+                }
+                this.endNodeMoving = false;
+            }
+        }
+        updateCells(width, height) {
+            const prevWidth = this.cellWidth;
+            const prevHeight = this.cellHeight;
+            this.width = width;
+            this.height = height;
+            this.cellWidth = width / this.cols;
+            this.cellHeight = height / this.rows;
+            this.solved = false;
+            for (const agent of this.population) {
+                agent.pos.x *= this.cellWidth / prevWidth;
+                agent.pos.y *= this.cellHeight / prevHeight;
+            }
+        }
+        generateNewMaze(rows, cols, population) {
+            const next = new Grid(rows, cols, this.width, this.height, population ?? this.population.length);
+            next.mutationRate = this.mutationRate;
+            return next;
+        }
+        generateMaze() {
+            let current = this.grid[1][1];
+            current.visited = true;
+            current.type = 2;
+            const stack = [current];
+            while (stack.length > 0) {
+                current = stack.pop();
+                const neighbors = [];
+                if (current.y >= 2 && !this.grid[current.y - 2][current.x].visited) neighbors.push(this.grid[current.y - 2][current.x]);
+                if (current.x >= 2 && !this.grid[current.y][current.x - 2].visited) neighbors.push(this.grid[current.y][current.x - 2]);
+                if (current.y <= this.rows - 3 && !this.grid[current.y + 2][current.x].visited) neighbors.push(this.grid[current.y + 2][current.x]);
+                if (current.x <= this.cols - 3 && !this.grid[current.y][current.x + 2].visited) neighbors.push(this.grid[current.y][current.x + 2]);
+                for (const neighbor of neighbors) neighbor.type = 0;
+                if (neighbors.length > 0) {
+                    stack.push(current);
+                    const chosen = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    if (chosen.y < current.y) this.grid[current.y - 1][current.x].type = 0;
+                    else if (chosen.y > current.y) this.grid[current.y + 1][current.x].type = 0;
+                    else if (chosen.x < current.x) this.grid[current.y][current.x - 1].type = 0;
+                    else if (chosen.x > current.x) this.grid[current.y][current.x + 1].type = 0;
+                    chosen.visited = true;
+                    stack.push(chosen);
+                }
+            }
+            this.grid[this.rows - 2][this.cols - 2].type = 3;
+        }
+        createPopulation(n) {
+            const population = [];
+            const start = this.getStartNodePosition();
+            for (let i = 0; i < n; i++) {
+                population.push(new Agent(
+                    start.x * this.cellWidth + this.cellWidth / 2,
+                    start.y * this.cellHeight + this.cellHeight / 2
+                ));
+            }
+            this.populationDeathToll = 0;
+            this.solved = false;
+            return population;
+        }
+        createPopulationFromPool(n, pool) {
+            const population = [];
+            const start = this.getStartNodePosition();
+            while (population.length < n) {
+                const parentA = pool[Math.floor(Math.random() * pool.length)];
+                const parentB = pool[Math.floor(Math.random() * pool.length)];
+                const minDna = Math.min(parentA.dna.length, parentB.dna.length);
+                const mid = minDna / 2;
+                const childDna = [];
+                for (let i = 0; i < minDna; i++) {
+                    if (Math.random() < this.mutationRate) {
+                        childDna.push({
+                            x: Math.random() * (Constants.ACC_RANGE[1] - Constants.ACC_RANGE[0]) + Constants.ACC_RANGE[0],
+                            y: Math.random() * (Constants.ACC_RANGE[1] - Constants.ACC_RANGE[0]) + Constants.ACC_RANGE[0]
+                        });
+                    } else if (i < mid) {
+                        childDna.push(parentA.dna[i]);
+                    } else {
+                        childDna.push(parentB.dna[i]);
+                    }
+                }
+                const avgFitness = Math.max(0, Math.min(1, (parentA.fitness + parentB.fitness) / 2));
+                const childColor = [
+                    Math.max(0, Math.min(255, 255 * (1 - avgFitness))),
+                    Math.max(0, Math.min(255, 255 * avgFitness)),
+                    0
+                ];
+                population.push(new Agent(
+                    start.x * this.cellWidth + this.cellWidth / 2,
+                    start.y * this.cellHeight + this.cellHeight / 2,
+                    childDna,
+                    childColor
+                ));
+            }
+            this.generationCount += 1;
+            this.populationDeathToll = 0;
+            this.solved = false;
+            return population;
+        }
+        getStartNodePosition() {
+            for (let y = 0; y < this.grid.length; y++) {
+                for (let x = 0; x < this.grid[y].length; x++) {
+                    if (this.grid[y][x].type === 2) return { x, y };
+                }
+            }
+            return { x: -1, y: -1 };
+        }
+        getEndNodePosition() {
+            for (let y = 0; y < this.grid.length; y++) {
+                for (let x = 0; x < this.grid[y].length; x++) {
+                    if (this.grid[y][x].type === 3) return { x, y };
+                }
+            }
+            return { x: -1, y: -1 };
+        }
+        getCell(pos) {
+            if (!pos) return null;
+            const cy = Math.floor(pos.y / this.cellHeight);
+            const cx = Math.floor(pos.x / this.cellWidth);
+            const row = this.grid[cy];
+            if (!row) return null;
+            return row[cx] || null;
+        }
+        setMutationRate(value) {
+            this.mutationRate = value;
+        }
+        setPopulation(size) {
+            this.population = this.createPopulation(size);
+        }
+        getGenerationCount() {
+            return this.generationCount;
+        }
+    }
+
+    const canvas = document.getElementById('ga-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let grid = new Grid(params.gridRows, params.gridColumns, 100, 100, params.population);
+    grid.setMutationRate(params.mutation);
+
+    function resizeCanvas() {
+        params.windowSize.width = window.innerWidth;
+        params.windowSize.height = window.innerHeight;
+        const bannerHeight = Math.min(Math.max(window.innerHeight * Constants.BANNER_RATIO, 48), 120);
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight - bannerHeight;
+        grid.updateCells(canvas.width, canvas.height);
+    }
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const mouse = {
+        x: -1,
+        y: -1,
+        pressed: false,
+        shift: false
+    };
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - rect.left;
+        mouse.y = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+        mouse.pressed = true;
+        grid.onMouseDown(mouse);
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        mouse.pressed = false;
+        grid.onMouseUp(mouse);
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        mouse.x = -1;
+        mouse.y = -1;
+        mouse.pressed = false;
+        grid.hoverInfo = null;
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') mouse.shift = true;
+    });
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') mouse.shift = false;
+    });
+
+    function skipVisualization() {
+        let count = 0;
+        while (!grid.solved && count < 500000) {
+            grid.update(canvas.width, canvas.height);
+            count++;
+        }
+        if (count > 0) params.pause = true;
+        params.generationCount = grid.getGenerationCount();
+        generationValue.textContent = params.generationCount;
+    }
+
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (mouse.x >= 0 && mouse.y >= 0) {
+            grid.handleHover(mouse, mouse.shift);
+        } else {
+            grid.hoverInfo = null;
+        }
+        if (!params.pause) {
+            if (params.skipVisual) {
+                skipVisualization();
+                params.skipVisual = false;
+            }
+            for (let i = 0; i < params.speed; i++) {
+                grid.update(canvas.width, canvas.height);
+            }
+            params.generationCount = grid.getGenerationCount();
+            generationValue.textContent = params.generationCount;
+        }
+        grid.show(ctx);
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+
+    const generationValue = document.getElementById('generation-value');
+    const toggleDropdown = document.getElementById('toggle-dropdown');
+    const dropdown = document.getElementById('dropdown');
+    const pauseBtn = document.getElementById('pause');
+    const skipBtn = document.getElementById('skip');
+    const speedSlider = document.getElementById('speed');
+    const rowsSlider = document.getElementById('rows');
+    const colsSlider = document.getElementById('cols');
+    const populationSlider = document.getElementById('population');
+    const mutationSlider = document.getElementById('mutation');
+    const rowsValue = document.getElementById('rows-value');
+    const colsValue = document.getElementById('cols-value');
+    const populationValue = document.getElementById('population-value');
+    const mutationValue = document.getElementById('mutation-value');
+    const applyBtn = document.getElementById('apply');
+    const toggleInfo = document.getElementById('toggle-info');
+    const infoModal = document.getElementById('info-modal');
+    const closeInfo = document.getElementById('close-info');
+
+    function updateLabels() {
+        rowsValue.textContent = params.gridRows;
+        colsValue.textContent = params.gridColumns;
+        populationValue.textContent = params.population;
+        mutationValue.textContent = params.mutation.toFixed(3);
+        speedSlider.value = params.speed;
+    }
+
+    updateLabels();
+    generationValue.textContent = params.generationCount;
+
+    toggleDropdown.addEventListener('click', () => {
+        dropdown.classList.toggle('open');
+    });
+
+    pauseBtn.addEventListener('click', () => {
+        params.pause = !params.pause;
+        pauseBtn.textContent = params.pause ? '▶️' : '⏸';
+    });
+
+    skipBtn.addEventListener('click', () => {
+        params.skipVisual = true;
+    });
+
+    speedSlider.addEventListener('input', (e) => {
+        params.speed = parseInt(e.target.value, 10);
+    });
+
+    rowsSlider.addEventListener('input', (e) => {
+        params.gridRows = parseInt(e.target.value, 10);
+        rowsValue.textContent = params.gridRows;
+    });
+
+    colsSlider.addEventListener('input', (e) => {
+        params.gridColumns = parseInt(e.target.value, 10);
+        colsValue.textContent = params.gridColumns;
+    });
+
+    populationSlider.addEventListener('input', (e) => {
+        params.population = parseInt(e.target.value, 10);
+        populationValue.textContent = params.population;
+        grid.setPopulation(params.population);
+    });
+
+    mutationSlider.addEventListener('input', (e) => {
+        params.mutation = parseFloat(e.target.value);
+        mutationValue.textContent = params.mutation.toFixed(3);
+        grid.setMutationRate(params.mutation);
+    });
+
+    applyBtn.addEventListener('click', () => {
+        grid = grid.generateNewMaze(params.gridRows, params.gridColumns, params.population);
+        grid.setMutationRate(params.mutation);
+        resizeCanvas();
+        params.generationCount = 1;
+        generationValue.textContent = params.generationCount;
+        dropdown.classList.remove('open');
+    });
+
+    toggleInfo.addEventListener('click', () => {
+        infoModal.classList.add('open');
+    });
+
+    closeInfo.addEventListener('click', () => {
+        infoModal.classList.remove('open');
+    });
+
+    infoModal.addEventListener('click', (e) => {
+        if (e.target === infoModal) infoModal.classList.remove('open');
+    });
+})();
+</script>
+</body>
+</html>
